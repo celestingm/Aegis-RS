@@ -40,3 +40,11 @@ jobs:
         with:
           name: aegis-rs-linux
           path: target/release/aegis-rs
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/release/aegis-rs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
