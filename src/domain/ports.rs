@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use crate::domain::entities::{HealthStatus, Config, Action, Alert};
+use crate::domain::entities::{Action, Alert, Config, HealthStatus};
 use anyhow::Result;
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait MonitorPort: Send + Sync {

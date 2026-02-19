@@ -1,8 +1,8 @@
-use crate::domain::ports::ConfigPort;
 use crate::domain::entities::Config;
+use crate::domain::ports::ConfigPort;
 use anyhow::{Context, Result};
-use std::fs;
 use serde::Deserialize;
+use std::fs;
 
 #[derive(Deserialize)]
 struct TomlConfig {
@@ -18,9 +18,15 @@ struct TomlConfig {
     webhook_url: Option<String>,
 }
 
-fn default_api_port() -> u16 { 3000 }
-fn default_secret_token() -> String { "change-me".to_string() }
-fn default_disk_threshold() -> u8 { 90 }
+fn default_api_port() -> u16 {
+    3000
+}
+fn default_secret_token() -> String {
+    "change-me".to_string()
+}
+fn default_disk_threshold() -> u8 {
+    90
+}
 
 pub struct FileConfigLoader;
 
@@ -28,10 +34,10 @@ impl ConfigPort for FileConfigLoader {
     fn load_config(&self, path: &str) -> Result<Config> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file at {}", path))?;
-        
-        let toml_config: TomlConfig = toml::from_str(&content)
-            .context("Failed to parse config file")?;
-            
+
+        let toml_config: TomlConfig =
+            toml::from_str(&content).context("Failed to parse config file")?;
+
         Ok(Config {
             api_port: toml_config.api_port,
             secret_token: toml_config.secret_token,

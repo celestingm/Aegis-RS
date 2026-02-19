@@ -1,5 +1,5 @@
-use crate::domain::ports::MonitorPort;
 use crate::domain::entities::HealthStatus;
+use crate::domain::ports::MonitorPort;
 use sysinfo::Disks;
 
 pub struct DiskMonitor;
@@ -18,8 +18,10 @@ impl MonitorPort for DiskMonitor {
                 let total = disk.total_space();
                 let available = disk.available_space();
                 let used = total - available;
-                
-                if total == 0 { return 0; }
+
+                if total == 0 {
+                    return 0;
+                }
                 return ((used as f64 / total as f64) * 100.0) as u8;
             }
         }

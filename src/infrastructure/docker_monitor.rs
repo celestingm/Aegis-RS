@@ -1,5 +1,5 @@
-use crate::domain::ports::MonitorPort;
 use crate::domain::entities::HealthStatus;
+use crate::domain::ports::MonitorPort;
 use std::process::Command;
 use tracing::error;
 
@@ -40,13 +40,20 @@ impl MonitorPort for DockerMonitor {
 
     fn discover_services(&self) -> Vec<String> {
         let output = Command::new("docker")
-            .args(["ps", "--filter", "label=aegis.monitor=true", "--format", "{{.Names}}"])
+            .args([
+                "ps",
+                "--filter",
+                "label=aegis.monitor=true",
+                "--format",
+                "{{.Names}}",
+            ])
             .output();
 
         match output {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                stdout.lines()
+                stdout
+                    .lines()
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
                     .collect()

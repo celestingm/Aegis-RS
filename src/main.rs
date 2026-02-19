@@ -1,22 +1,22 @@
+mod application;
 mod domain;
 mod infrastructure;
-mod application;
 mod presentation;
 
-use std::sync::{Arc, Mutex};
-use std::collections::VecDeque; 
-use clap::Parser;
-use tracing::{info, error, Level};
-use tracing_subscriber::FmtSubscriber;
-use crate::domain::entities::{SystemMetrics, Config};
+use crate::application::orchestrator::Orchestrator;
+use crate::domain::entities::{Config, SystemMetrics};
 use crate::domain::ports::ConfigPort;
 use crate::infrastructure::config_loader::FileConfigLoader;
-use crate::infrastructure::docker_monitor::DockerMonitor;
 use crate::infrastructure::disk_monitor::DiskMonitor;
-use crate::infrastructure::remediation_adapter::SystemRemediator;
+use crate::infrastructure::docker_monitor::DockerMonitor;
 use crate::infrastructure::notification_adapter::WebhookNotifier;
-use crate::application::orchestrator::Orchestrator;
+use crate::infrastructure::remediation_adapter::SystemRemediator;
 use crate::presentation::api::{start_server, AppState};
+use clap::Parser;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+use tracing::{error, info, Level};
+use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -30,8 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
         .finish();
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("setting default subscriber failed");
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let args = Args::parse();
     info!("Starting Aegis-RS (Clean Architecture Edition)...");
@@ -51,7 +50,9 @@ async fn main() -> anyhow::Result<()> {
     let history = Arc::new(Mutex::new(VecDeque::with_capacity(60)));
     {
         let mut h = history.lock().unwrap();
-        for _ in 0..60 { h.push_back(0); }
+        for _ in 0..60 {
+            h.push_back(0);
+        }
     }
 
     let docker_monitor = Arc::new(DockerMonitor::new());

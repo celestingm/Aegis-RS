@@ -1,11 +1,13 @@
-use crate::domain::entities::{Config, HealthStatus, SystemMetrics, ServiceStatus, Action, Alert, AlertData};
-use crate::domain::ports::{MonitorPort, RemediationPort, NotificationPort};
+use crate::domain::entities::{
+    Action, Alert, AlertData, Config, HealthStatus, ServiceStatus, SystemMetrics,
+};
+use crate::domain::ports::{MonitorPort, NotificationPort, RemediationPort};
+use chrono::Local;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use std::collections::{HashMap, VecDeque};
 use tokio::time;
-use tracing::{info, warn, error};
-use chrono::Local;
+use tracing::{error, info, warn};
 
 pub struct Orchestrator {
     config: Config,
@@ -50,7 +52,7 @@ impl Orchestrator {
             info!("Running health checks...");
 
             let disk_usage = self.disk_monitor.check_disk_usage();
-            
+
             if tick_count % 6 == 0 {
                 let mut h = self.history.lock().unwrap();
                 h.pop_front();
@@ -80,25 +82,36 @@ impl Orchestrator {
 
                     if let Some(last) = last_heal {
                         if now.duration_since(*last) < cooldown_duration {
-                            warn!("Service {} is critical, but remediation is on cooldown. Skipping.", service);
+                            warn!(
+                                "Service {} is critical, but remediation is on cooldown. Skipping.",
+                                service
+                            );
                             continue;
                         }
                     }
 
                     info!("Service {} is critical. Attempting heal...", service);
-                    
+
                     if let Some(webhook) = &self.config.webhook_url {
                         let alert = Alert {
                             text: format!("🚨 Service {} is DOWN. Restarting...", service),
                             level: "critical".to_string(),
                             timestamp: Local::now().to_rfc3339(),
-                            data: Some(AlertData { service: service.clone(), action: "restart".to_string(), details: None }),
+                            data: Some(AlertData {
+                                service: service.clone(),
+                                action: "restart".to_string(),
+                                details: None,
+                            }),
                             graph_link: None,
                         };
                         self.notifier.send_alert(webhook, alert).await;
                     }
 
-                    match self.remediator.heal(Action::RestartDockerService(service.to_string())).await {
+                    match self
+                        .remediator
+                        .heal(Action::RestartDockerService(service.to_string()))
+                        .await
+                    {
                         Ok(_) => {
                             cooldowns.insert(service.clone(), now);
                         }
@@ -112,22 +125,32 @@ impl Orchestrator {
             if disk_usage > self.config.disk_threshold {
                 let now = Instant::now();
                 let last_heal = cooldowns.get("disk_cleanup");
-                
+
                 let should_run = match last_heal {
                     Some(last) => now.duration_since(*last) >= cooldown_duration,
                     None => true,
                 };
 
                 if should_run {
-                    info!("Disk usage > {}%. Attempting cleanup...", self.config.disk_threshold);
-                    
+                    info!(
+                        "Disk usage > {}%. Attempting cleanup...",
+                        self.config.disk_threshold
+                    );
+
                     if let Some(webhook) = &self.config.webhook_url {
                         let graph_url = format!("http://localhost:{}/graph", self.config.api_port);
                         let alert = Alert {
-                            text: format!("⚠️ Disk usage detected at {}%. Cleaning logs...", disk_usage),
+                            text: format!(
+                                "⚠️ Disk usage detected at {}%. Cleaning logs...",
+                                disk_usage
+                            ),
                             level: "warning".to_string(),
                             timestamp: Local::now().to_rfc3339(),
-                            data: Some(AlertData { service: "disk".to_string(), action: "clean_logs".to_string(), details: Some(format!("{}%", disk_usage)) }),
+                            data: Some(AlertData {
+                                service: "disk".to_string(),
+                                action: "clean_logs".to_string(),
+                                details: Some(format!("{}%", disk_usage)),
+                            }),
                             graph_link: Some(graph_url),
                         };
                         self.notifier.send_alert(webhook, alert).await;
@@ -142,7 +165,7 @@ impl Orchestrator {
                         }
                     }
                 } else {
-                     warn!("Disk usage critical, but cleanup on cooldown.");
+                    warn!("Disk usage critical, but cleanup on cooldown.");
                 }
             }
 
