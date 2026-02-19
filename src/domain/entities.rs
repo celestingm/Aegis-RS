@@ -18,13 +18,26 @@ pub struct SystemMetrics {
     pub services: Vec<ServiceStatus>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub enum Provider {
+    Discord,
+    Slack,
+    Teams,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WebhookConfig {
+    pub url: String,
+    pub provider: Provider,
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub api_port: u16,
     pub secret_token: String,
     pub disk_threshold: u8,
     pub docker_services: Option<Vec<String>>,
-    pub webhook_url: Option<String>,
+    pub webhooks: Vec<WebhookConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +46,7 @@ pub enum Action {
     CleanLogs,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Alert {
     pub text: String,
     pub level: String,
@@ -42,7 +55,7 @@ pub struct Alert {
     pub graph_link: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AlertData {
     pub service: String,
     pub action: String,

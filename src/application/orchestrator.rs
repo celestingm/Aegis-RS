@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::time;
 use tracing::{error, info, warn};
+use crate::application::graph_generator;
 
 pub struct Orchestrator {
     config: Config,
@@ -17,6 +18,7 @@ pub struct Orchestrator {
     notifier: Arc<dyn NotificationPort>,
     metrics: Arc<Mutex<SystemMetrics>>,
     history: Arc<Mutex<VecDeque<u8>>>,
+    last_discord_msg_id: Arc<Mutex<HashMap<String, String>>>, // Map webhook_url -> message_id
 }
 
 impl Orchestrator {
@@ -37,10 +39,12 @@ impl Orchestrator {
             notifier,
             metrics,
             history,
+            last_discord_msg_id: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     pub async fn run(&self) {
+
         let mut interval = time::interval(Duration::from_secs(10));
         let mut cooldowns: HashMap<String, Instant> = HashMap::new();
         let cooldown_duration = Duration::from_secs(300);
@@ -51,12 +55,24 @@ impl Orchestrator {
             tick_count += 1;
             info!("Running health checks...");
 
+            // ... (existing monitoring logic) ...
+            
+            // Check disk usage
             let disk_usage = self.disk_monitor.check_disk_usage();
-
             if tick_count % 6 == 0 {
                 let mut h = self.history.lock().unwrap();
                 h.pop_front();
                 h.push_back(disk_usage);
+            }
+
+            // ... (rest of the monitoring loop) ...
+
+            // Send periodic report every 60 ticks (approx 10 minutes with 10s interval)
+            // For testing, let's do every 6 ticks (1 minute) if it's a dev version, but user asked for "continuous".
+            // Let's set it to every 6 ticks (1 minute) for now so he sees it working.
+            if tick_count % 6 == 0 {
+                 info!("Sending periodic status report...");
+                 self.send_report(tick_count).await;
             }
 
             let discovered;
@@ -92,21 +108,21 @@ impl Orchestrator {
 
                     info!("Service {} is critical. Attempting heal...", service);
 
-                    if let Some(webhook) = &self.config.webhook_url {
-                        let alert = Alert {
-                            text: format!("🚨 Service {} is DOWN. Restarting...", service),
-                            level: "critical".to_string(),
-                            timestamp: Local::now().to_rfc3339(),
-                            data: Some(AlertData {
-                                service: service.clone(),
-                                action: "restart".to_string(),
-                                details: None,
-                            }),
-                            graph_link: None,
-                        };
-                        self.notifier.send_alert(webhook, alert).await;
+                    let alert = Alert {
+                        text: format!("🚨 Service {} is DOWN. Restarting...", service),
+                        level: "critical".to_string(),
+                        timestamp: Local::now().to_rfc3339(),
+                        data: Some(AlertData {
+                            service: service.clone(),
+                            action: "restart".to_string(),
+                            details: None,
+                        }),
+                        graph_link: None,
+                    };
+                    for webhook in &self.config.webhooks {
+                        let alert_clone = alert.clone();
+                        self.notifier.send_alert(webhook, alert_clone).await;
                     }
-
                     match self
                         .remediator
                         .heal(Action::RestartDockerService(service.to_string()))
@@ -132,38 +148,28 @@ impl Orchestrator {
                 };
 
                 if should_run {
-                    info!(
-                        "Disk usage > {}%. Attempting cleanup...",
-                        self.config.disk_threshold
-                    );
+                    info!("Disk usage critical ({}%). Cleaning logs...", disk_usage);
 
-                    if let Some(webhook) = &self.config.webhook_url {
-                        let graph_url = format!("http://localhost:{}/graph", self.config.api_port);
-                        let alert = Alert {
-                            text: format!(
-                                "⚠️ Disk usage detected at {}%. Cleaning logs...",
-                                disk_usage
-                            ),
-                            level: "warning".to_string(),
-                            timestamp: Local::now().to_rfc3339(),
-                            data: Some(AlertData {
-                                service: "disk".to_string(),
-                                action: "clean_logs".to_string(),
-                                details: Some(format!("{}%", disk_usage)),
-                            }),
-                            graph_link: Some(graph_url),
-                        };
-                        self.notifier.send_alert(webhook, alert).await;
+                    let alert = Alert {
+                        text: format!("💾 Disk Usage Critical: {}%. Cleaning logs...", disk_usage),
+                        level: "warning".to_string(),
+                        timestamp: Local::now().to_rfc3339(),
+                        data: Some(AlertData {
+                            service: "system".to_string(),
+                            action: "clean_logs".to_string(),
+                            details: Some(format!("Usage: {}%", disk_usage)),
+                        }),
+                        graph_link: None,
+                    };
+                    for webhook in &self.config.webhooks {
+                        let alert_clone = alert.clone();
+                        self.notifier.send_alert(webhook, alert_clone).await;
                     }
 
-                    match self.remediator.heal(Action::CleanLogs).await {
-                        Ok(_) => {
-                            cooldowns.insert("disk_cleanup".to_string(), now);
-                        }
-                        Err(e) => {
-                            error!("Disk cleanup failed: {}", e);
-                        }
+                    if let Err(e) = self.remediator.heal(Action::CleanLogs).await {
+                        error!("Disk cleanup failed: {}", e);
                     }
+                    cooldowns.insert("disk_cleanup".to_string(), now);
                 } else {
                     warn!("Disk usage critical, but cleanup on cooldown.");
                 }
@@ -173,6 +179,69 @@ impl Orchestrator {
                 let mut guard = self.metrics.lock().unwrap();
                 guard.disk_usage_percent = disk_usage;
                 guard.services = service_statuses;
+            }
+
+            // Send startup report at the end of the first tick (once metrics are populated)
+            if tick_count == 1 && !self.config.webhooks.is_empty() {
+                 info!("Sending startup status report...");
+                 self.send_report(0).await;
+            }
+        }
+    }
+
+    async fn send_report(&self, tick_count: u64) {
+        if self.config.webhooks.is_empty() {
+            return;
+        }
+
+        let (message, png_data) = {
+            let metrics = self.metrics.lock().unwrap();
+            let history = self.history.lock().unwrap();
+
+            let message = format!(
+                "📊 **System Status Report**\nDisk Usage: {}%\nServices: {}/{} Healthy",
+                metrics.disk_usage_percent,
+                metrics.services.iter().filter(|s| matches!(s.status, HealthStatus::Healthy)).count(),
+                metrics.services.len()
+            );
+
+            // Generate PNG
+            let png_data = match graph_generator::generate_png_buffer(&history, &metrics) {
+                Ok(data) => Some(data),
+                Err(e) => {
+                    error!("Failed to generate PNG for report: {}", e);
+                    None
+                }
+            };
+            (message, png_data)
+        };
+
+        for webhook in &self.config.webhooks {
+            // Frequency Logic:
+            // Discord: Every time (Live Dashboard)
+            // Slack/Teams: Only once every hour (360 ticks of 10s = 1h), or startup
+            
+            let should_send = match webhook.provider {
+                crate::domain::entities::Provider::Discord => true, // Always update dashboard
+                _ => tick_count == 0 || tick_count % 360 == 0, // Hourly for others to avoid spam
+            };
+
+            if !should_send {
+                continue;
+            }
+            
+            let previous_id = {
+                let guard = self.last_discord_msg_id.lock().unwrap();
+                guard.get(&webhook.url).cloned()
+            };
+            
+            match self.notifier.send_status_report(webhook, message.clone(), png_data.clone(), previous_id.as_deref()).await {
+                Ok(Some(new_id)) => {
+                    let mut guard = self.last_discord_msg_id.lock().unwrap();
+                    guard.insert(webhook.url.clone(), new_id);
+                },
+                Ok(None) => {},
+                Err(e) => error!("Failed to send/edit status report to {}: {}", webhook.url, e),
             }
         }
     }

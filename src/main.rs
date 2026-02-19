@@ -12,7 +12,7 @@ use crate::infrastructure::docker_monitor::DockerMonitor;
 use crate::infrastructure::notification_adapter::WebhookNotifier;
 use crate::infrastructure::remediation_adapter::SystemRemediator;
 use crate::presentation::api::{start_server, AppState};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tracing::{error, info, Level};
@@ -23,6 +23,28 @@ use tracing_subscriber::FmtSubscriber;
 struct Args {
     #[arg(short, long, default_value = "config.toml")]
     config: String,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Webhook {
+        #[command(subcommand)]
+        action: WebhookCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum WebhookCommands {
+    Add {
+        #[arg(long)]
+        url: String,
+        #[arg(long)]
+        provider: String,
+    },
+    List,
 }
 
 #[tokio::main]
@@ -33,6 +55,32 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let args = Args::parse();
+    
+    // Handle CLI commands first
+    if let Some(Commands::Webhook { action }) = &args.command {
+        let loader = FileConfigLoader;
+        match action {
+            WebhookCommands::Add { url, provider } => {
+                match loader.add_webhook(&args.config, url.clone(), provider.clone()) {
+                    Ok(_) => info!("Successfully added webhook to {}", args.config),
+                    Err(e) => error!("Failed to add webhook: {}", e),
+                }
+            }
+            WebhookCommands::List => {
+                 match loader.list_webhooks(&args.config) {
+                    Ok(hooks) => {
+                        println!("Configured Webhooks:");
+                        for (url, provider) in hooks {
+                            println!("- Provider: {}, URL: {}", provider, url);
+                        }
+                    }
+                    Err(e) => error!("Failed to list webhooks: {}", e),
+                }
+            }
+        }
+        return Ok(());
+    }
+
     info!("Starting Aegis-RS (Clean Architecture Edition)...");
 
     let config_loader = FileConfigLoader;

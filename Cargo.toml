@@ -17,5 +17,7 @@ async-trait = "0.1"
 tower-http = { version = "0.5", features = ["trace"] }
 toml = "0.8"
 clap = { version = "4.4", features = ["derive"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
 chrono = { version = "0.4", features = ["serde"] }
+plotters = { version = "0.3", default-features = false, features = ["svg_backend", "bitmap_backend", "bitmap_encoder", "line_series", "area_series", "ab_glyph"] }
+image = { version = "0.24", default-features = false, features = ["png"] }
