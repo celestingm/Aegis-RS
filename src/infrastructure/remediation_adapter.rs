@@ -5,7 +5,17 @@ use async_trait::async_trait;
 use std::process::Command;
 use tracing::info;
 
-pub struct SystemRemediator;
+use crate::domain::entities::Config;
+
+pub struct SystemRemediator {
+    _config: Config,
+}
+
+impl SystemRemediator {
+    pub fn new(config: Config) -> Self {
+        Self { _config: config }
+    }
+}
 
 #[async_trait]
 impl RemediationPort for SystemRemediator {

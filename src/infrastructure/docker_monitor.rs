@@ -3,6 +3,7 @@ use crate::domain::ports::MonitorPort;
 use std::process::Command;
 use tracing::error;
 
+
 pub struct DockerMonitor;
 
 impl DockerMonitor {
@@ -11,11 +12,8 @@ impl DockerMonitor {
     }
 }
 
+#[async_trait::async_trait]
 impl MonitorPort for DockerMonitor {
-    fn check_disk_usage(&self) -> u8 {
-        0
-    }
-
     fn check_service(&self, service_name: &str) -> HealthStatus {
         let output = Command::new("docker")
             .args(["inspect", "-f", "{{.State.Running}}", service_name])
@@ -35,6 +33,17 @@ impl MonitorPort for DockerMonitor {
                 error!("Failed to check service {}: {}", service_name, e);
                 HealthStatus::Critical(format!("Docker check failed: {}", e))
             }
+        }
+    }
+
+    async fn get_system_metrics(&self) -> crate::domain::entities::SystemMetrics {
+        crate::domain::entities::SystemMetrics {
+            disk_usage_percent: 0,
+            cpu_usage_percent: 0,
+            ram_usage_percent: 0,
+            ram_total_gb: 0.0,
+            ram_used_gb: 0.0,
+            services: vec![],
         }
     }
 

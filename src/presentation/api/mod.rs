@@ -1,10 +1,10 @@
-use crate::domain::entities::{Action, HealthStatus, SystemMetrics};
+use crate::domain::entities::{Action, Config, HealthStatus, SystemMetrics};
 use crate::domain::ports::RemediationPort;
 use crate::infrastructure::remediation_adapter::SystemRemediator;
 use axum::{
     extract::State,
-    http::{header, HeaderMap, StatusCode},
-    response::IntoResponse,
+    http::{HeaderMap, StatusCode},
+    response::Html,
     routing::{get, post},
     Json, Router,
 };
@@ -17,9 +17,10 @@ use tracing::{info, warn};
 #[derive(Clone)]
 pub struct AppState {
     pub metrics: Arc<Mutex<SystemMetrics>>,
-    pub history: Arc<Mutex<VecDeque<u8>>>,
+    pub history: Arc<Mutex<VecDeque<SystemMetrics>>>,
     pub secret_token: String,
     pub api_port: u16,
+    pub config: Arc<Mutex<Config>>,
 }
 
 pub async fn start_server(state: AppState) {
@@ -39,14 +40,31 @@ pub async fn start_server(state: AppState) {
 
 use crate::application::graph_generator;
 
-async fn get_graph(State(state): State<AppState>) -> impl IntoResponse {
+async fn get_graph(State(state): State<AppState>) -> Html<String> {
     let history = state.history.lock().unwrap();
     let metrics = state.metrics.lock().unwrap();
 
     let svg_content = graph_generator::generate_svg_string(&history, &metrics)
         .unwrap_or_else(|e| format!("<svg><text>Error generating graph: {}</text></svg>", e));
 
-    ([(header::CONTENT_TYPE, "image/svg+xml")], svg_content)
+    let html = format!(
+        r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>Aegis-RS System Status</title>
+    <meta http-equiv="refresh" content="5">
+    <style>
+        body {{ background-color: #1e1e2e; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }}
+    </style>
+</head>
+<body>
+    {}
+</body>
+</html>"#,
+        svg_content
+    );
+
+    Html(html)
 }
 
 async fn get_metrics(State(state): State<AppState>) -> String {
@@ -97,7 +115,8 @@ async fn handle_webhook(
 
     info!("Received secured webhook: {:?}", payload);
 
-    let remediator = SystemRemediator;
+    let config = state.config.lock().unwrap().clone();
+    let remediator = SystemRemediator::new(config);
 
     if let Some(action_str) = payload.get("action").and_then(|v| v.as_str()) {
         match action_str {

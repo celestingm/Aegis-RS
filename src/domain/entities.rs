@@ -15,6 +15,10 @@ pub struct ServiceStatus {
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemMetrics {
     pub disk_usage_percent: u8,
+    pub cpu_usage_percent: u8,
+    pub ram_usage_percent: u8,
+    pub ram_total_gb: f32,
+    pub ram_used_gb: f32,
     pub services: Vec<ServiceStatus>,
 }
 

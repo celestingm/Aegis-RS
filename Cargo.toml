@@ -19,5 +19,6 @@ toml = "0.8"
 clap = { version = "4.4", features = ["derive"] }
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 chrono = { version = "0.4", features = ["serde"] }
-plotters = { version = "0.3", default-features = false, features = ["svg_backend", "bitmap_backend", "bitmap_encoder", "line_series", "area_series", "ab_glyph"] }
+plotters = { version = "0.3", default-features = false, features = ["svg_backend", "bitmap_backend", "bitmap_encoder", "line_series", "area_series", "ab_glyph", "ttf", "font-kit"] }
 image = { version = "0.24", default-features = false, features = ["png"] }
+base64 = "0.21"

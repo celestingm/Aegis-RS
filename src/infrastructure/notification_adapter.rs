@@ -1,10 +1,18 @@
-use crate::domain::entities::Alert;
+use crate::domain::entities::{Alert, Config};
 use crate::domain::ports::NotificationPort;
 use async_trait::async_trait;
 use reqwest::Client;
 use tracing::{error, info};
 
-pub struct WebhookNotifier;
+pub struct WebhookNotifier {
+    _config: Config,
+}
+
+impl WebhookNotifier {
+    pub fn new(config: Config) -> Self {
+        Self { _config: config }
+    }
+}
 
 #[async_trait]
 impl NotificationPort for WebhookNotifier {
@@ -74,6 +82,10 @@ impl WebhookNotifier {
 
                  let payload = serde_json::json!({
                     "content": message,
+                    "embeds": [{
+                        "image": { "url": "attachment://status.png" },
+                        "color": 5763719
+                    }],
                     "attachments": [{ "id": 0, "filename": "status.png" }]
                 });
 
@@ -101,9 +113,18 @@ impl WebhookNotifier {
                     .mime_str("image/png")
                     .unwrap();
 
+                let payload = serde_json::json!({
+                    "content": message,
+                    "embeds": [{
+                        "image": { "url": "attachment://status.png" },
+                        "color": 5763719
+                    }],
+                    "attachments": [{ "id": 0, "filename": "status.png" }]
+                });
+
                 let form = reqwest::multipart::Form::new()
-                    .text("content", message)
-                    .part("file", part);
+                    .text("payload_json", payload.to_string())
+                    .part("files[0]", part);
 
                 client.post(&create_url).multipart(form).send().await
             } else {

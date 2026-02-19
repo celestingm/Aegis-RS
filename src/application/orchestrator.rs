@@ -13,11 +13,11 @@ use crate::application::graph_generator;
 pub struct Orchestrator {
     config: Config,
     docker_monitor: Arc<dyn MonitorPort>,
-    disk_monitor: Arc<dyn MonitorPort>,
+    system_monitor: Arc<dyn MonitorPort>,
     remediator: Arc<dyn RemediationPort>,
     notifier: Arc<dyn NotificationPort>,
     metrics: Arc<Mutex<SystemMetrics>>,
-    history: Arc<Mutex<VecDeque<u8>>>,
+    history: Arc<Mutex<VecDeque<SystemMetrics>>>, // Updated type
     last_discord_msg_id: Arc<Mutex<HashMap<String, String>>>, // Map webhook_url -> message_id
 }
 
@@ -25,16 +25,16 @@ impl Orchestrator {
     pub fn new(
         config: Config,
         docker_monitor: Arc<dyn MonitorPort>,
-        disk_monitor: Arc<dyn MonitorPort>,
+        system_monitor: Arc<dyn MonitorPort>,
         remediator: Arc<dyn RemediationPort>,
         notifier: Arc<dyn NotificationPort>,
         metrics: Arc<Mutex<SystemMetrics>>,
-        history: Arc<Mutex<VecDeque<u8>>>,
+        history: Arc<Mutex<VecDeque<SystemMetrics>>>,
     ) -> Self {
         Self {
             config,
             docker_monitor,
-            disk_monitor,
+            system_monitor,
             remediator,
             notifier,
             metrics,
@@ -55,14 +55,14 @@ impl Orchestrator {
             tick_count += 1;
             info!("Running health checks...");
 
-            // ... (existing monitoring logic) ...
-            
-            // Check disk usage
-            let disk_usage = self.disk_monitor.check_disk_usage();
+            // Check System Metrics (CPU, RAM, Disk)
+            let current_system_metrics = self.system_monitor.get_system_metrics().await;
+            let disk_usage = current_system_metrics.disk_usage_percent;
+
             if tick_count % 6 == 0 {
                 let mut h = self.history.lock().unwrap();
                 h.pop_front();
-                h.push_back(disk_usage);
+                h.push_back(current_system_metrics.clone());
             }
 
             // ... (rest of the monitoring loop) ...
@@ -198,12 +198,29 @@ impl Orchestrator {
             let metrics = self.metrics.lock().unwrap();
             let history = self.history.lock().unwrap();
 
-            let message = format!(
-                "📊 **System Status Report**\nDisk Usage: {}%\nServices: {}/{} Healthy",
-                metrics.disk_usage_percent,
-                metrics.services.iter().filter(|s| matches!(s.status, HealthStatus::Healthy)).count(),
-                metrics.services.len()
-            );
+            let mut msg = String::new();
+            msg.push_str("📊 **System Status Report**\n");
+            msg.push_str(&format!("💾 Disk: {}%\n", metrics.disk_usage_percent));
+            msg.push_str(&format!("🧠 CPU: {}%\n", metrics.cpu_usage_percent));
+            msg.push_str(&format!("🐏 RAM: {}% ({:.1}GB/{:.1}GB)\n", 
+                metrics.ram_usage_percent, 
+                metrics.ram_used_gb, 
+                metrics.ram_total_gb
+            ));
+
+            let healthy_count = metrics.services.iter().filter(|s| matches!(s.status, HealthStatus::Healthy)).count();
+            msg.push_str(&format!("\n🛠 Services: {}/{} Healthy", healthy_count, metrics.services.len()));
+
+            if !metrics.services.is_empty() {
+                msg.push_str("\n");
+                for service in &metrics.services {
+                    let icon = match service.status {
+                        HealthStatus::Healthy => "✅",
+                        HealthStatus::Critical(_) => "❌",
+                    };
+                    msg.push_str(&format!("{} {}\n", icon, service.name));
+                }
+            }
 
             // Generate PNG
             let png_data = match graph_generator::generate_png_buffer(&history, &metrics) {
@@ -213,8 +230,9 @@ impl Orchestrator {
                     None
                 }
             };
-            (message, png_data)
+            (msg, png_data)
         };
+
 
         for webhook in &self.config.webhooks {
             // Frequency Logic:

@@ -4,9 +4,9 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait MonitorPort: Send + Sync {
-    fn check_disk_usage(&self) -> u8;
     fn check_service(&self, name: &str) -> HealthStatus;
     fn discover_services(&self) -> Vec<String>;
+    async fn get_system_metrics(&self) -> crate::domain::entities::SystemMetrics;
 }
 
 #[async_trait]

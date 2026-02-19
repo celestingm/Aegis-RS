@@ -4,11 +4,11 @@ mod infrastructure;
 mod presentation;
 
 use crate::application::orchestrator::Orchestrator;
-use crate::domain::entities::{Config, SystemMetrics};
+use crate::domain::entities::Config;
 use crate::domain::ports::{ConfigPort, MonitorPort};
 use crate::infrastructure::config_loader::FileConfigLoader;
-use crate::infrastructure::disk_monitor::DiskMonitor;
 use crate::infrastructure::docker_monitor::DockerMonitor;
+use crate::infrastructure::system_monitor::SystemMonitor; // Updated import
 use crate::infrastructure::notification_adapter::WebhookNotifier;
 use crate::infrastructure::remediation_adapter::SystemRemediator;
 use crate::presentation::api::{start_server, AppState};
@@ -90,51 +90,53 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("Configuration loaded.");
 
+    let remediator = Arc::new(SystemRemediator::new(config.clone()));
+    let notifier = Arc::new(WebhookNotifier::new(config.clone()));
     let docker_monitor = Arc::new(DockerMonitor::new());
-    let disk_monitor = Arc::new(DiskMonitor::new());
-    let remediator = Arc::new(SystemRemediator);
-    let notifier = Arc::new(WebhookNotifier);
+    let system_monitor = Arc::new(SystemMonitor::new());
 
-    let initial_disk = disk_monitor.check_disk_usage();
-    info!("Initial Disk Usage: {}%", initial_disk);
+    // Fetch initial metrics to populate history
+    let initial_metrics = system_monitor.get_system_metrics().await;
 
-    let metrics = Arc::new(Mutex::new(SystemMetrics {
-        disk_usage_percent: initial_disk,
-        services: vec![],
-    }));
+    let metrics = Arc::new(Mutex::new(initial_metrics.clone()));
 
-    let history = Arc::new(Mutex::new(VecDeque::with_capacity(60)));
-    {
-        let mut h = history.lock().unwrap();
-        for _ in 0..60 {
-            h.push_back(initial_disk);
-        }
+    // Store history of SystemMetrics for graph generation
+    let mut history_deque = VecDeque::with_capacity(60);
+    for _ in 0..60 {
+        history_deque.push_back(initial_metrics.clone());
     }
+    let history = Arc::new(Mutex::new(history_deque));
 
     let orchestrator = Orchestrator::new(
         config.clone(),
         docker_monitor,
-        disk_monitor,
-        remediator,
-        notifier,
+        system_monitor,
+        remediator.clone(),
+        notifier.clone(),
         metrics.clone(),
         history.clone(),
     );
+
+    // Start Orchestrator in background
+    let orchestrator_arc = Arc::new(orchestrator);
+    let orch_clone = orchestrator_arc.clone();
+    let orchestrator_handle = tokio::spawn(async move {
+        orch_clone.run().await;
+    });
 
     let app_state = AppState {
         metrics: metrics.clone(),
         history: history.clone(),
         secret_token: config.secret_token.clone(),
         api_port: config.api_port,
+        config: Arc::new(Mutex::new(config)),
     };
 
     let server_handle = tokio::spawn(async move {
         start_server(app_state).await;
     });
 
-    let orchestrator_handle = tokio::spawn(async move {
-        orchestrator.run().await;
-    });
+
 
     tokio::select! {
         _ = server_handle => error!("API server task matched"),
