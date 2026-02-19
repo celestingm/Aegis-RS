@@ -82,9 +82,9 @@ where
     chart
         .configure_mesh()
         .disable_x_mesh()
-        .bold_line_style(&RGBColor(69, 71, 90).mix(0.3)) // #45475a
+        .bold_line_style(RGBColor(69, 71, 90).mix(0.3)) // #45475a
         .y_desc("Usage (%)")
-        .axis_style(&RGBColor(186, 194, 222)) // #bac2de
+        .axis_style(RGBColor(186, 194, 222)) // #bac2de
         .label_style(("roboto", 15).into_font().color(&RGBColor(186, 194, 222)))
         .draw()?;
 
@@ -104,20 +104,20 @@ where
 
     // CPU Usage (Red)
     chart
-        .draw_series(LineSeries::new(cpu_data, &RED))?
+        .draw_series(LineSeries::new(cpu_data, RED))?
         .label("CPU")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
 
     // RAM Usage (Green)
     chart
-        .draw_series(LineSeries::new(ram_data, &GREEN))?
+        .draw_series(LineSeries::new(ram_data, GREEN))?
         .label("RAM")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], GREEN));
 
     chart
         .configure_series_labels()
-        .background_style(&RGBColor(30, 30, 46).mix(0.8))
-        .border_style(&RGBColor(186, 194, 222))
+        .background_style(RGBColor(30, 30, 46).mix(0.8))
+        .border_style(RGBColor(186, 194, 222))
         .label_font(("roboto", 15).into_font().color(&RGBColor(205, 214, 244)))
         .draw()?;
 

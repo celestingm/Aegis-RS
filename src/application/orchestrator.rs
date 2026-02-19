@@ -218,7 +218,7 @@ impl Orchestrator {
             ));
 
             if !metrics.services.is_empty() {
-                msg.push_str("\n");
+                msg.push('\n');
                 for service in &metrics.services {
                     let status_text = match service.status {
                         HealthStatus::Healthy => "[OK]",
@@ -246,7 +246,7 @@ impl Orchestrator {
 
             let should_send = match webhook.provider {
                 crate::domain::entities::Provider::Discord => true, // Always update dashboard
-                _ => tick_count == 0 || tick_count % 360 == 0, // Hourly for others to avoid spam
+                _ => tick_count == 0 || tick_count.is_multiple_of(360), // Hourly for others to avoid spam
             };
 
             if !should_send {
