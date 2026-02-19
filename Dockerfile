@@ -28,7 +28,7 @@ COPY --from=builder /usr/src/aegis-rs/target/release/aegis-rs .
 COPY --from=builder /usr/src/aegis-rs/config.toml .
 
 # Expose the API port
-EXPOSE 3000
+EXPOSE 3001
 
 # Set the entrypoint
 CMD ["./aegis-rs"]

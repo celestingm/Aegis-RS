@@ -13,5 +13,9 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tower = { version = "0.4", features = ["util"] }
+async-trait = "0.1"
 tower-http = { version = "0.5", features = ["trace"] }
 toml = "0.8"
+clap = { version = "4.4", features = ["derive"] }
+reqwest = { version = "0.12", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
