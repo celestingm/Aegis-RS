@@ -1,2 +1,5 @@
 /target
-Makefile
+config.toml
+config.toml.bak
+*.env
+.env

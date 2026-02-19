@@ -1,0 +1,14 @@
+api_port = 3001
+secret_token = "change-me-to-a-secure-token"
+disk_threshold = 90
+docker_services = ["grafana", "prometheus", "backend", "frontend"]
+
+# Example Discord Webhook
+[[webhooks]]
+url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+provider = "discord"
+
+# Example Teams Webhook
+# [[webhooks]]
+# url = "https://your-teams-webhook-url"
+# provider = "teams"
