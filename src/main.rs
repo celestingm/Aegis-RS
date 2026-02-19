@@ -5,7 +5,7 @@ mod presentation;
 
 use crate::application::orchestrator::Orchestrator;
 use crate::domain::entities::{Config, SystemMetrics};
-use crate::domain::ports::ConfigPort;
+use crate::domain::ports::{ConfigPort, MonitorPort};
 use crate::infrastructure::config_loader::FileConfigLoader;
 use crate::infrastructure::disk_monitor::DiskMonitor;
 use crate::infrastructure::docker_monitor::DockerMonitor;
@@ -35,6 +35,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     info!("Starting Aegis-RS (Clean Architecture Edition)...");
 
+
     let config_loader = FileConfigLoader;
     let config = config_loader.load_config(&args.config).unwrap_or_else(|e| {
         error!("Failed to load config: {}. Using defaults.", e);
@@ -42,8 +43,19 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("Configuration loaded.");
 
+
+    let docker_monitor = Arc::new(DockerMonitor::new());
+    let disk_monitor = Arc::new(DiskMonitor::new());
+    let remediator = Arc::new(SystemRemediator);
+    let notifier = Arc::new(WebhookNotifier);
+
+
+    let initial_disk = disk_monitor.check_disk_usage();
+    info!("Initial Disk Usage: {}%", initial_disk);
+
+
     let metrics = Arc::new(Mutex::new(SystemMetrics {
-        disk_usage_percent: 0,
+        disk_usage_percent: initial_disk,
         services: vec![],
     }));
 
@@ -51,14 +63,9 @@ async fn main() -> anyhow::Result<()> {
     {
         let mut h = history.lock().unwrap();
         for _ in 0..60 {
-            h.push_back(0);
+            h.push_back(initial_disk);
         }
     }
-
-    let docker_monitor = Arc::new(DockerMonitor::new());
-    let disk_monitor = Arc::new(DiskMonitor::new());
-    let remediator = Arc::new(SystemRemediator);
-    let notifier = Arc::new(WebhookNotifier);
 
     let orchestrator = Orchestrator::new(
         config.clone(),

@@ -1,132 +1,132 @@
-# 🛡️ Aegis-RS (Autonomous Remediation System)
+# Aegis-RS
 
-> **A rust-based, modular, and autonomous self-healing orchestrator for your infrastructure.**
+> **Autonomous Self-Healing Infrastructure Orchestrator**
+> 
+> *Built with Rust, Tokio, and Clean Architecture.*
 
-Aegis-RS monitors your system (Disk, Docker Services) and **automatically repairs faults** (restarting containers, cleaning logs) without human intervention. Use it as a standalone binary or deploy it alongside your stack.
-
----
-
-## 🚀 Key Features
-
-*   **🔍 Auto-Discovery**: Automatically monitors any container with the label `aegis.monitor=true`. No config needed!
-*   **⚡ Blazing Fast**: Written in Rust, using Tokio and Axum. Low footprint.
-*   **🛠️ Self-Healing**: Detects DOWN services and restarts them. Detects disk saturation and cleans logs.
-*   **🔔 Notifications**: Sends real-time alerts to **Discord**, **Slack**, or any Webhook.
-*   **📈 Visualization**: Built-in `/graph` endpoint renders SVG history of system stats.
-*   **🛡️ Secure**: Webhook endpoint protected by Bearer Token.
+![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-%230blue.svg?style=for-the-badge&logo=docker&logoColor=white)
+![Build Status](https://github.com/celestingm/Aegis-RS/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)
 
 ---
 
-## 📦 Installation & Usage
+**Aegis-RS** is a lightweight, high-performance monitoring and remediation agent. It watches your system's resources and services, and **automatically fixes problems** before you even wake up.
 
-### 1. Download Binary
+## Key Features
 
-Go to the **Actions** tab on GitHub, click the latest workflow run on `main`, and download the `aegis-rs-linux` artifact.
+- **Auto-Discovery**: No manual config needed. Just add `labels: ["aegis.monitor=true"]` to your Docker containers.
+- **Blazing Fast**: Compiled to native binary. Minimal CPU/RAM footprint (~5MB).
+- **Self-Healing**:
+  - Restarts crashed/unhealthy Docker services.
+  - Cleans system logs when disk usage spikes.
+- **Real-time Alerts**: Webhook integration for Discord, Slack, or Telegram.
+- **Visual Insights**: Native SVG graph generation for historical metrics.
+- **Clean Architecture**: Designed for maintainability, testability, and modularity.
 
+---
 
-Simply add the label to your `docker-compose.yml`:
+## Installation
+
+### Option 1: Download Binary (Recommended)
+1. Go to the [Actions Tab](https://github.com/celestingm/Aegis-RS/actions).
+2. Click the latest workflow run on `main`.
+3. Download the `aegis-rs-linux` artifact.
+4. `chmod +x aegis-rs && ./aegis-rs`
+
+### Option 2: Build from Source
+```bash
+# Clone the repository
+git clone https://github.com/celestingm/Aegis-RS.git
+cd Aegis-RS
+
+# Build release binary
+cargo build --release
+
+# Run
+./target/release/aegis-rs
+```
+
+---
+
+## Usage
+
+### 1. Tag Your Containers
+Add the label to any service you want to monitor in `docker-compose.yml`:
 
 ```yaml
 services:
-  my-app:
+  my-critical-app:
     image: nginx:latest
     labels:
-      - "aegis.monitor=true"
+      - "aegis.monitor=true"  # <--- That's it!
 ```
 
-Then run Aegis-RS:
-
-```bash
-cargo run --release
-```
-
-### 2. Configuration (Optional)
-
-Create a `config.toml` file to customize behavior:
+### 2. Configure (Optional)
+Aegis-RS runs with sensible defaults, but you can override them via `config.toml`:
 
 ```toml
-# API Port (default 3000)
+# config.toml
 api_port = 3001
-
-# Secret token for external webhooks
-secret_token = "my-super-secret"
-
-# Disk usage threshold (default 90%)
+secret_token = "my-secure-token"
 disk_threshold = 95
-
-# Webhook for Notifications (Discord/Slack/etc)
 webhook_url = "https://discord.com/api/webhooks/..."
 
-# (Optional) Hardcoded list of services instead of Auto-Discovery
-# docker_services = ["nginx", "redis"] 
+# Optional: Manual list (if you don't use labels)
+# docker_services = ["postgres", "redis"]
 ```
 
-Run with specific config:
-
+Run with config:
 ```bash
-./aegis-rs --config /path/to/config.toml
+./aegis-rs --config /path/to/my-config.toml
 ```
 
 ---
 
-## 📡 API Endpoints
+## API Reference
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/metrics` | Prometheus-compatible system metrics. |
-| `GET` | `/graph` | SVG Graph of disk usage (last 60m). |
-| `POST` | `/webhook` | Trigger manual remediation (Requires Bearer Token). |
+The agent exposes a lightweight HTTP API.
 
----
+| Endpoint | Method | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| `/metrics` | `GET` | Prometheus-compatible metrics. | ❌ |
+| `/graph` | `GET` | SVG visualization of system load. | ❌ |
+| `/webhook` | `POST` | Trigger manual remediation actions. | ✅ |
 
-## 🏗️ Project Structure
-
-The project is structured for modularity and maintainability:
-
-```
-src/
-├── domain/           # Enterprise Business Rules (Entities, Ports)
-│   ├── mod.rs
-│   ├── entities.rs   # Structs: HealthStatus, Alert, Config...
-│   └── ports.rs      # Traits: MonitorPort, RemediationPort...
-├── application/      # Application Business Rules (Use Cases)
-│   ├── mod.rs
-│   └── orchestrator.rs # The "Brain": Orchestrates the loop
-├── infrastructure/   # Frameworks & Drivers (Adapters)
-│   ├── mod.rs
-│   ├── docker_monitor.rs
-│   ├── disk_monitor.rs
-│   ├── config_loader.rs
-│   └── notification_adapter.rs
-├── presentation/     # Interface Adapters (Controllers)
-│   ├── mod.rs
-│   └── api/          # Axum Handlers
-└── main.rs           # Composition Root & wiring
-```
-
-## 🛠️ Development & Testing
-
-We use a `Makefile` to simplify common tasks.
-
-*   **Run everything (Format, Lint, Test, Build)**:
-    ```bash
-    make ci
-    ```
-*   **Run only tests**:
-    ```bash
-    make test
-    # or
-    cargo test
-    ```
-*   **Run the app locally**:
-    ```bash
-    make run
-    # or
-    cargo run --release
-    ```
+**Example Graph Output:**
+> *The `/graph` endpoint returns a generated SVG like this:*
+> 
+> ![Graph Placeholder](https://via.placeholder.com/600x200.png?text=Sparkline+Graph+Generated+By+Aegis-RS)
 
 ---
 
-## 📜 License
+## Architecture
 
-MIT License. Built with ❤️ in Rust.
+Aegis-RS follows **Clean Architecture** (Hexagonal) principles to decouple business logic from infrastructure details.
+
+```mermaid
+graph TD
+    User((User/API)) --> Presentation
+    presentation_layer[Presentation Layer]
+    application_layer[Application Layer]
+    domain_layer[Domain Layer]
+    infrastructure_layer[Infrastructure Layer]
+
+    subgraph "Aegis-RS Core"
+        Presentation --> Application
+        Application --> Domain
+        Infrastructure -.->|Implements| Domain
+        Application -->|Uses| Infrastructure
+    end
+```
+
+- **Domain**: Pure business entities (`HealthStatus`, `Alert`) and interface definitions (`Ports`).
+- **Application**: The `Orchestrator` loop that drives the logic.
+- **Infrastructure**: Adapters for Docker, Disk I/O, and HTTP Notifiers.
+- **Presentation**: Axum web server.
+
+---
+
+## License
+
+MIT License.
