@@ -41,10 +41,21 @@ jobs:
           name: aegis-rs-linux
           path: target/release/aegis-rs
 
-      - name: Create Release
+      - name: Create Release (Tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
+          files: target/release/aegis-rs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Nightly Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Nightly Build
+          tag_name: nightly
+          prerelease: true
           files: target/release/aegis-rs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
