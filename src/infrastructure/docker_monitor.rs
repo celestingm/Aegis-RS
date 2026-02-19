@@ -3,7 +3,6 @@ use crate::domain::ports::MonitorPort;
 use std::process::Command;
 use tracing::error;
 
-
 pub struct DockerMonitor;
 
 impl DockerMonitor {

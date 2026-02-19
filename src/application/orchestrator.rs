@@ -1,3 +1,4 @@
+use crate::application::graph_generator;
 use crate::domain::entities::{
     Action, Alert, AlertData, Config, HealthStatus, ServiceStatus, SystemMetrics,
 };
@@ -8,7 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::time;
 use tracing::{error, info, warn};
-use crate::application::graph_generator;
 
 pub struct Orchestrator {
     config: Config,
@@ -44,7 +44,6 @@ impl Orchestrator {
     }
 
     pub async fn run(&self) {
-
         let mut interval = time::interval(Duration::from_secs(10));
         let mut cooldowns: HashMap<String, Instant> = HashMap::new();
         let cooldown_duration = Duration::from_secs(300);
@@ -71,8 +70,8 @@ impl Orchestrator {
             // For testing, let's do every 6 ticks (1 minute) if it's a dev version, but user asked for "continuous".
             // Let's set it to every 6 ticks (1 minute) for now so he sees it working.
             if tick_count % 6 == 0 {
-                 info!("Sending periodic status report...");
-                 self.send_report(tick_count).await;
+                info!("Sending periodic status report...");
+                self.send_report(tick_count).await;
             }
 
             let discovered;
@@ -183,8 +182,8 @@ impl Orchestrator {
 
             // Send startup report at the end of the first tick (once metrics are populated)
             if tick_count == 1 && !self.config.webhooks.is_empty() {
-                 info!("Sending startup status report...");
-                 self.send_report(0).await;
+                info!("Sending startup status report...");
+                self.send_report(0).await;
             }
         }
     }
@@ -202,14 +201,21 @@ impl Orchestrator {
             msg.push_str("📊 **System Status Report**\n");
             msg.push_str(&format!("💾 Disk: {}%\n", metrics.disk_usage_percent));
             msg.push_str(&format!("🧠 CPU: {}%\n", metrics.cpu_usage_percent));
-            msg.push_str(&format!("🐏 RAM: {}% ({:.1}GB/{:.1}GB)\n", 
-                metrics.ram_usage_percent, 
-                metrics.ram_used_gb, 
-                metrics.ram_total_gb
+            msg.push_str(&format!(
+                "🐏 RAM: {}% ({:.1}GB/{:.1}GB)\n",
+                metrics.ram_usage_percent, metrics.ram_used_gb, metrics.ram_total_gb
             ));
 
-            let healthy_count = metrics.services.iter().filter(|s| matches!(s.status, HealthStatus::Healthy)).count();
-            msg.push_str(&format!("\n🛠 Services: {}/{} Healthy", healthy_count, metrics.services.len()));
+            let healthy_count = metrics
+                .services
+                .iter()
+                .filter(|s| matches!(s.status, HealthStatus::Healthy))
+                .count();
+            msg.push_str(&format!(
+                "\n🛠 Services: {}/{} Healthy",
+                healthy_count,
+                metrics.services.len()
+            ));
 
             if !metrics.services.is_empty() {
                 msg.push_str("\n");
@@ -233,12 +239,11 @@ impl Orchestrator {
             (msg, png_data)
         };
 
-
         for webhook in &self.config.webhooks {
             // Frequency Logic:
             // Discord: Every time (Live Dashboard)
             // Slack/Teams: Only once every hour (360 ticks of 10s = 1h), or startup
-            
+
             let should_send = match webhook.provider {
                 crate::domain::entities::Provider::Discord => true, // Always update dashboard
                 _ => tick_count == 0 || tick_count % 360 == 0, // Hourly for others to avoid spam
@@ -247,19 +252,31 @@ impl Orchestrator {
             if !should_send {
                 continue;
             }
-            
+
             let previous_id = {
                 let guard = self.last_discord_msg_id.lock().unwrap();
                 guard.get(&webhook.url).cloned()
             };
-            
-            match self.notifier.send_status_report(webhook, message.clone(), png_data.clone(), previous_id.as_deref()).await {
+
+            match self
+                .notifier
+                .send_status_report(
+                    webhook,
+                    message.clone(),
+                    png_data.clone(),
+                    previous_id.as_deref(),
+                )
+                .await
+            {
                 Ok(Some(new_id)) => {
                     let mut guard = self.last_discord_msg_id.lock().unwrap();
                     guard.insert(webhook.url.clone(), new_id);
-                },
-                Ok(None) => {},
-                Err(e) => error!("Failed to send/edit status report to {}: {}", webhook.url, e),
+                }
+                Ok(None) => {}
+                Err(e) => error!(
+                    "Failed to send/edit status report to {}: {}",
+                    webhook.url, e
+                ),
             }
         }
     }

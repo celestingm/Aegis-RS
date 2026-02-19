@@ -23,19 +23,32 @@ impl NotificationPort for WebhookNotifier {
         let result = client.post(&config.url).json(&alert).send().await;
         self.handle_result(result);
     }
-    async fn send_status_report(&self, config: &crate::domain::entities::WebhookConfig, message: String, image_data: Option<Vec<u8>>, previous_message_id: Option<&str>) -> anyhow::Result<Option<String>> {
+    async fn send_status_report(
+        &self,
+        config: &crate::domain::entities::WebhookConfig,
+        message: String,
+        image_data: Option<Vec<u8>>,
+        previous_message_id: Option<&str>,
+    ) -> anyhow::Result<Option<String>> {
         let client = Client::new();
-        
+
         match config.provider {
             crate::domain::entities::Provider::Discord => {
-                self.send_discord_status(&client, &config.url, message, image_data, previous_message_id).await
-            },
+                self.send_discord_status(
+                    &client,
+                    &config.url,
+                    message,
+                    image_data,
+                    previous_message_id,
+                )
+                .await
+            }
             crate::domain::entities::Provider::Slack => {
                 let payload = serde_json::json!({ "text": message });
                 let result = client.post(&config.url).json(&payload).send().await;
                 self.handle_provider_result(config.provider.clone(), result);
                 Ok(None)
-            },
+            }
             crate::domain::entities::Provider::Teams => {
                 // Teams Workflows often accept Adaptive Cards better than plain text
                 let payload = serde_json::json!({
@@ -68,19 +81,26 @@ impl NotificationPort for WebhookNotifier {
 }
 
 impl WebhookNotifier {
-    async fn send_discord_status(&self, client: &Client, webhook_url: &str, message: String, image_data: Option<Vec<u8>>, previous_message_id: Option<&str>) -> anyhow::Result<Option<String>> {
-         if let Some(msg_id) = previous_message_id {
+    async fn send_discord_status(
+        &self,
+        client: &Client,
+        webhook_url: &str,
+        message: String,
+        image_data: Option<Vec<u8>>,
+        previous_message_id: Option<&str>,
+    ) -> anyhow::Result<Option<String>> {
+        if let Some(msg_id) = previous_message_id {
             // EDIT existing message
             let edit_url = format!("{}/messages/{}", webhook_url, msg_id);
 
             if let Some(image_bytes) = image_data {
-                 // Multipart edit to replace attachment
+                // Multipart edit to replace attachment
                 let part = reqwest::multipart::Part::bytes(image_bytes)
                     .file_name("status.png")
                     .mime_str("image/png")
                     .unwrap();
 
-                 let payload = serde_json::json!({
+                let payload = serde_json::json!({
                     "content": message,
                     "embeds": [{
                         "image": { "url": "attachment://status.png" },
@@ -99,8 +119,8 @@ impl WebhookNotifier {
                     return Ok(None);
                 }
             } else {
-                 let payload = serde_json::json!({ "content": message });
-                 let _ = client.patch(&edit_url).json(&payload).send().await;
+                let payload = serde_json::json!({ "content": message });
+                let _ = client.patch(&edit_url).json(&payload).send().await;
             }
             Ok(Some(msg_id.to_string()))
         } else {
@@ -135,12 +155,12 @@ impl WebhookNotifier {
             match response {
                 Ok(res) => {
                     if res.status().is_success() {
-                         if let Ok(json) = res.json::<serde_json::Value>().await {
+                        if let Ok(json) = res.json::<serde_json::Value>().await {
                             if let Some(id) = json.get("id").and_then(|id| id.as_str()) {
                                 info!("Notification sent successfully, ID: {}", id);
                                 return Ok(Some(id.to_string()));
                             }
-                         }
+                        }
                     } else {
                         error!("Failed to send notification: Status {}", res.status());
                     }
@@ -166,13 +186,17 @@ impl WebhookNotifier {
         }
     }
 
-    fn handle_provider_result(&self, provider: crate::domain::entities::Provider, result: Result<reqwest::Response, reqwest::Error>) {
-         match result {
+    fn handle_provider_result(
+        &self,
+        provider: crate::domain::entities::Provider,
+        result: Result<reqwest::Response, reqwest::Error>,
+    ) {
+        match result {
             Ok(res) => {
                 if res.status().is_success() {
                     info!("Notification sent to {:?} successfully.", provider);
                 } else {
-                    // We can't await body here easily without moving ownership or async, 
+                    // We can't await body here easily without moving ownership or async,
                     // but we can log status. To log body we'd need async context passed down or handle inline.
                     // For now, inline in match arms above was better for body.
                     // Actually, let's keep it simple here.

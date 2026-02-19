@@ -7,7 +7,7 @@ use std::fs;
 #[derive(Deserialize, Serialize, Clone)]
 pub struct TomlWebhook {
     url: String,
-    provider:String,
+    provider: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -44,7 +44,8 @@ impl ConfigPort for FileConfigLoader {
         let toml_config: TomlConfig =
             toml::from_str(&content).context("Failed to parse config file")?;
 
-        let webhooks = toml_config.webhooks
+        let webhooks = toml_config
+            .webhooks
             .unwrap_or_default()
             .into_iter()
             .map(|w| {
@@ -74,7 +75,7 @@ impl ConfigPort for FileConfigLoader {
 impl FileConfigLoader {
     pub fn add_webhook(&self, path: &str, url: String, provider: String) -> Result<()> {
         let content = fs::read_to_string(path).unwrap_or_else(|_| "".to_string());
-        
+
         // If file doesn't exist or is empty, start fresh? Or assume it exists from load?
         // Let's try to parse, if fail, assume default
         let mut toml_config: TomlConfig = toml::from_str(&content).unwrap_or(TomlConfig {
@@ -86,7 +87,7 @@ impl FileConfigLoader {
         });
 
         let new_webhook = TomlWebhook { url, provider };
-        
+
         match &mut toml_config.webhooks {
             Some(hooks) => hooks.push(new_webhook),
             None => toml_config.webhooks = Some(vec![new_webhook]),
@@ -100,9 +101,15 @@ impl FileConfigLoader {
     pub fn list_webhooks(&self, path: &str) -> Result<Vec<(String, String)>> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file at {}", path))?;
-        let toml_config: TomlConfig = toml::from_str(&content).context("Failed to parse config file")?;
-        
-        Ok(toml_config.webhooks.unwrap_or_default().into_iter().map(|w| (w.url, w.provider)).collect())
+        let toml_config: TomlConfig =
+            toml::from_str(&content).context("Failed to parse config file")?;
+
+        Ok(toml_config
+            .webhooks
+            .unwrap_or_default()
+            .into_iter()
+            .map(|w| (w.url, w.provider))
+            .collect())
     }
 }
 

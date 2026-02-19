@@ -8,9 +8,9 @@ use crate::domain::entities::Config;
 use crate::domain::ports::{ConfigPort, MonitorPort};
 use crate::infrastructure::config_loader::FileConfigLoader;
 use crate::infrastructure::docker_monitor::DockerMonitor;
-use crate::infrastructure::system_monitor::SystemMonitor; // Updated import
 use crate::infrastructure::notification_adapter::WebhookNotifier;
 use crate::infrastructure::remediation_adapter::SystemRemediator;
+use crate::infrastructure::system_monitor::SystemMonitor; // Updated import
 use crate::presentation::api::{start_server, AppState};
 use clap::{Parser, Subcommand};
 use std::collections::VecDeque;
@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let args = Args::parse();
-    
+
     // Handle CLI commands first
     if let Some(Commands::Webhook { action }) = &args.command {
         let loader = FileConfigLoader;
@@ -66,17 +66,15 @@ async fn main() -> anyhow::Result<()> {
                     Err(e) => error!("Failed to add webhook: {}", e),
                 }
             }
-            WebhookCommands::List => {
-                 match loader.list_webhooks(&args.config) {
-                    Ok(hooks) => {
-                        println!("Configured Webhooks:");
-                        for (url, provider) in hooks {
-                            println!("- Provider: {}, URL: {}", provider, url);
-                        }
+            WebhookCommands::List => match loader.list_webhooks(&args.config) {
+                Ok(hooks) => {
+                    println!("Configured Webhooks:");
+                    for (url, provider) in hooks {
+                        println!("- Provider: {}, URL: {}", provider, url);
                     }
-                    Err(e) => error!("Failed to list webhooks: {}", e),
                 }
-            }
+                Err(e) => error!("Failed to list webhooks: {}", e),
+            },
         }
         return Ok(());
     }
@@ -135,8 +133,6 @@ async fn main() -> anyhow::Result<()> {
     let server_handle = tokio::spawn(async move {
         start_server(app_state).await;
     });
-
-
 
     tokio::select! {
         _ = server_handle => error!("API server task matched"),

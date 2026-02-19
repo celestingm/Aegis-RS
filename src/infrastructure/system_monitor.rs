@@ -1,7 +1,7 @@
 use crate::domain::entities::{HealthStatus, SystemMetrics};
 use crate::domain::ports::MonitorPort;
-use sysinfo::{Disks, System};
 use std::sync::Mutex;
+use sysinfo::{Disks, System};
 
 pub struct SystemMonitor {
     sys: Mutex<System>,
@@ -13,9 +13,9 @@ impl SystemMonitor {
         let mut sys = System::new_all();
         sys.refresh_all();
         let disks = Disks::new_with_refreshed_list();
-        Self { 
-            sys: Mutex::new(sys), 
-            disks: Mutex::new(disks) 
+        Self {
+            sys: Mutex::new(sys),
+            disks: Mutex::new(disks),
         }
     }
 }
@@ -33,7 +33,7 @@ impl MonitorPort for SystemMonitor {
     async fn get_system_metrics(&self) -> SystemMetrics {
         let mut sys = self.sys.lock().unwrap();
         let mut disks = self.disks.lock().unwrap();
-        
+
         sys.refresh_all();
         disks.refresh_list();
 
