@@ -41,14 +41,12 @@ async fn get_graph(State(state): State<AppState>) -> impl IntoResponse {
     let history = state.history.lock().unwrap();
     let metrics = state.metrics.lock().unwrap();
 
-
     let width = 800;
     let height = 400;
     let graph_height = 150;
     let graph_width = 700;
     let graph_x = 50;
     let graph_y = 100;
-
 
     let points: Vec<(usize, usize)> = history
         .iter()
@@ -61,22 +59,18 @@ async fn get_graph(State(state): State<AppState>) -> impl IntoResponse {
         })
         .collect();
 
-
     let mut svg = String::new();
     svg.push_str(&format!(
         "<svg width=\"{}\" height=\"{}\" xmlns=\"http://www.w3.org/2000/svg\" style=\"font-family: sans-serif;\">",
         width, height
     ));
 
-
     svg.push_str("<rect width=\"100%\" height=\"100%\" fill=\"#1e1e2e\"/>");
-
 
     svg.push_str(&format!(
         "<text x=\"{}\" y=\"50\" fill=\"#cdd6f4\" font-size=\"24\" font-weight=\"bold\">Aegis-RS Dashboard</text>",
         graph_x
     ));
-
 
     let all_healthy = metrics
         .services
@@ -99,17 +93,14 @@ async fn get_graph(State(state): State<AppState>) -> impl IntoResponse {
         width - 150, status_text
     ));
 
-
     svg.push_str(
         "<text x=\"50\" y=\"90\" fill=\"#bac2de\" font-size=\"16\">Disk Usage (Last 60m)</text>",
     );
-
 
     svg.push_str(&format!(
         "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#313244\" rx=\"5\"/>",
         graph_x, graph_y, graph_width, graph_height
     ));
-
 
     for i in 0..5 {
         let y = graph_y + i * (graph_height / 4);
@@ -119,19 +110,16 @@ async fn get_graph(State(state): State<AppState>) -> impl IntoResponse {
         ));
     }
 
-
     svg.push_str("<polyline fill=\"none\" stroke=\"#89b4fa\" stroke-width=\"2\" points=\"");
     for (x, y) in points {
         svg.push_str(&format!("{},{} ", x, y));
     }
     svg.push_str("\"/>");
 
-
     svg.push_str(&format!(
         "<text x=\"{}\" y=\"280\" fill=\"#cdd6f4\" font-size=\"14\">Current Usage: {}%</text>",
         graph_x, metrics.disk_usage_percent
     ));
-
 
     let start_y = 320;
     svg.push_str(&format!(
@@ -146,12 +134,10 @@ async fn get_graph(State(state): State<AppState>) -> impl IntoResponse {
             _ => ("#f38ba8", "✗"),
         };
 
-
         svg.push_str(&format!(
             "<rect x=\"{}\" y=\"{}\" width=\"160\" height=\"30\" rx=\"5\" fill=\"#313244\" stroke=\"{}\" stroke-width=\"1\"/>",
             service_x, start_y + 15, color
         ));
-
 
         svg.push_str(&format!(
             "<circle cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"{}\"/>",
@@ -159,7 +145,6 @@ async fn get_graph(State(state): State<AppState>) -> impl IntoResponse {
             start_y + 30,
             color
         ));
-
 
         svg.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" fill=\"#cdd6f4\" font-size=\"12\">{}</text>",

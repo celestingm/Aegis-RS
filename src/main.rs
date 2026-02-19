@@ -35,7 +35,6 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     info!("Starting Aegis-RS (Clean Architecture Edition)...");
 
-
     let config_loader = FileConfigLoader;
     let config = config_loader.load_config(&args.config).unwrap_or_else(|e| {
         error!("Failed to load config: {}. Using defaults.", e);
@@ -43,16 +42,13 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("Configuration loaded.");
 
-
     let docker_monitor = Arc::new(DockerMonitor::new());
     let disk_monitor = Arc::new(DiskMonitor::new());
     let remediator = Arc::new(SystemRemediator);
     let notifier = Arc::new(WebhookNotifier);
 
-
     let initial_disk = disk_monitor.check_disk_usage();
     info!("Initial Disk Usage: {}%", initial_disk);
-
 
     let metrics = Arc::new(Mutex::new(SystemMetrics {
         disk_usage_percent: initial_disk,
