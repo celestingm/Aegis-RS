@@ -198,11 +198,11 @@ impl Orchestrator {
             let history = self.history.lock().unwrap();
 
             let mut msg = String::new();
-            msg.push_str("📊 **System Status Report**\n");
-            msg.push_str(&format!("💾 Disk: {}%\n", metrics.disk_usage_percent));
-            msg.push_str(&format!("🧠 CPU: {}%\n", metrics.cpu_usage_percent));
+            msg.push_str("**System Status Report**\n");
+            msg.push_str(&format!("Disk: {}%\n", metrics.disk_usage_percent));
+            msg.push_str(&format!("CPU: {}%\n", metrics.cpu_usage_percent));
             msg.push_str(&format!(
-                "🐏 RAM: {}% ({:.1}GB/{:.1}GB)\n",
+                "RAM: {}% ({:.1}GB/{:.1}GB)\n",
                 metrics.ram_usage_percent, metrics.ram_used_gb, metrics.ram_total_gb
             ));
 
@@ -212,7 +212,7 @@ impl Orchestrator {
                 .filter(|s| matches!(s.status, HealthStatus::Healthy))
                 .count();
             msg.push_str(&format!(
-                "\n🛠 Services: {}/{} Healthy",
+                "\nServices: {}/{} Healthy",
                 healthy_count,
                 metrics.services.len()
             ));
@@ -220,11 +220,11 @@ impl Orchestrator {
             if !metrics.services.is_empty() {
                 msg.push_str("\n");
                 for service in &metrics.services {
-                    let icon = match service.status {
-                        HealthStatus::Healthy => "✅",
-                        HealthStatus::Critical(_) => "❌",
+                    let status_text = match service.status {
+                        HealthStatus::Healthy => "[OK]",
+                        HealthStatus::Critical(_) => "[ERR]",
                     };
-                    msg.push_str(&format!("{} {}\n", icon, service.name));
+                    msg.push_str(&format!("{} {}\n", status_text, service.name));
                 }
             }
 
