@@ -19,7 +19,10 @@ Aegis-RS monitors your system (Disk, Docker Services) and **automatically repair
 
 ## 📦 Installation & Usage
 
-### 1. The "Magic" Way (Docker Labels)
+### 1. Download Binary
+
+Go to the **Actions** tab on GitHub, click the latest workflow run on `main`, and download the `aegis-rs-linux` artifact.
+
 
 Simply add the label to your `docker-compose.yml`:
 
@@ -82,15 +85,45 @@ The project is structured for modularity and maintainability:
 
 ```
 src/
-├── core/           # Business Logic
-│   ├── monitor.rs      # System & Docker Monitoring
-│   ├── remediation.rs  # Healing Logic (Restart, Clean)
-│   ├── notification.rs # Webhook Alerting
-│   └── config.rs       # TOML/Env Parsing
-├── web/            # HTTP Interface
-│   └── api.rs          # Axum Server & Routes
-└── main.rs         # Entrypoint & Orchestration Loop
+├── domain/           # Enterprise Business Rules (Entities, Ports)
+│   ├── mod.rs
+│   ├── entities.rs   # Structs: HealthStatus, Alert, Config...
+│   └── ports.rs      # Traits: MonitorPort, RemediationPort...
+├── application/      # Application Business Rules (Use Cases)
+│   ├── mod.rs
+│   └── orchestrator.rs # The "Brain": Orchestrates the loop
+├── infrastructure/   # Frameworks & Drivers (Adapters)
+│   ├── mod.rs
+│   ├── docker_monitor.rs
+│   ├── disk_monitor.rs
+│   ├── config_loader.rs
+│   └── notification_adapter.rs
+├── presentation/     # Interface Adapters (Controllers)
+│   ├── mod.rs
+│   └── api/          # Axum Handlers
+└── main.rs           # Composition Root & wiring
 ```
+
+## 🛠️ Development & Testing
+
+We use a `Makefile` to simplify common tasks.
+
+*   **Run everything (Format, Lint, Test, Build)**:
+    ```bash
+    make ci
+    ```
+*   **Run only tests**:
+    ```bash
+    make test
+    # or
+    cargo test
+    ```
+*   **Run the app locally**:
+    ```bash
+    make run
+    # or
+    cargo run --release
+    ```
 
 ---
 
