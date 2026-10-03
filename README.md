@@ -65,6 +65,7 @@ cp config.example.toml config.toml
 ```toml
 # config.toml
 api_port = 3001
+# REQUIRED to enable /webhook. Generate one with: openssl rand -hex 32
 secret_token = "change-me-to-a-secure-token"
 disk_threshold = 90
 docker_services = ["grafana", "prometheus", "backend", "frontend"]
@@ -91,6 +92,19 @@ Run with a custom config path:
 ./aegis-rs --config /etc/aegis/config.toml
 ```
 
+### Docker
+
+```bash
+docker build -t aegis-rs .
+docker run -d --name aegis-rs -p 3001:3001 \
+  -v $(pwd)/config.toml:/app/config.toml:ro \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  aegis-rs
+```
+
+`config.toml` is not baked into the image (it holds secrets): mount your own. Mounting the Docker
+socket gives Aegis-RS control over the host's containers, so only do it on hosts you trust.
+
 ---
 
 ## CLI: Webhook Management
@@ -113,7 +127,20 @@ Run with a custom config path:
 | `/graph`   | `GET`  | Live auto-refreshing SVG graph.         | No   |
 | `/webhook` | `POST` | Trigger manual remediation actions.     | Yes  |
 
-The `/webhook` endpoint requires a `Bearer` token matching `secret_token` in your config.
+The `/webhook` endpoint requires a `Bearer` token matching `secret_token` in your config:
+
+```bash
+curl -X POST http://localhost:3001/webhook \
+  -H "Authorization: Bearer <your secret_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "restart", "target": "grafana"}'
+```
+
+Supported actions: `restart` (with a `target` container name) and `clean_logs`.
+
+> **Security:** the endpoint is **disabled** (`503`) until you set a real `secret_token`.
+> Empty values and the `change-me` placeholders are rejected. Tokens are compared in constant time,
+> and `target` must be a valid Docker container name. See [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -139,6 +166,16 @@ graph TD
 - **Presentation** — Axum-based HTTP server exposing metrics, graph, and webhook endpoints.
 
 ---
+
+## Development
+
+```bash
+make ci   # fmt, clippy, tests, release build
+```
+
+## Security
+
+Found a vulnerability? See [SECURITY.md](SECURITY.md).
 
 ## License
 

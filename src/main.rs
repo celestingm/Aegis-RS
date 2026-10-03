@@ -15,7 +15,7 @@ use crate::presentation::api::{start_server, AppState};
 use clap::{Parser, Subcommand};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use tracing::{error, info, Level};
+use tracing::{error, info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser, Debug)]
@@ -87,6 +87,9 @@ async fn main() -> anyhow::Result<()> {
         Config::default()
     });
     info!("Configuration loaded.");
+    if !config.has_secure_token() {
+        warn!("No secure `secret_token` configured: the /webhook endpoint is disabled.");
+    }
 
     let remediator = Arc::new(SystemRemediator::new(config.clone()));
     let notifier = Arc::new(WebhookNotifier::new(config.clone()));

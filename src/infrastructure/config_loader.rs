@@ -27,8 +27,9 @@ struct TomlConfig {
 fn default_api_port() -> u16 {
     3000
 }
+/// No usable default: the `/webhook` endpoint stays disabled until a real token is configured.
 fn default_secret_token() -> String {
-    "change-me".to_string()
+    String::new()
 }
 fn default_disk_threshold() -> u8 {
     90

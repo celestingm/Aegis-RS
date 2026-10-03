@@ -2,6 +2,12 @@
 name = "aegis-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Lightweight self-healing monitoring agent: system metrics, Docker health, auto-remediation and chat notifications"
+license = "MIT"
+repository = "https://github.com/celestingm/Aegis-RS"
+readme = "README.md"
+keywords = ["monitoring", "docker", "self-healing", "observability"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 tokio = { version = "1.36", features = ["full"] }
