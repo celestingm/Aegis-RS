@@ -15,7 +15,6 @@ pub trait RemediationPort: Send + Sync {
 }
 
 #[async_trait]
-#[async_trait]
 pub trait NotificationPort: Send + Sync {
     async fn send_alert(&self, config: &crate::domain::entities::WebhookConfig, alert: Alert);
     async fn send_status_report(
