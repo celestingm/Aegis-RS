@@ -44,6 +44,14 @@ pub struct Config {
     pub webhooks: Vec<WebhookConfig>,
 }
 
+impl Config {
+    /// Placeholder values shipped in the docs/examples must never be accepted as a real token.
+    pub fn has_secure_token(&self) -> bool {
+        let t = self.secret_token.trim();
+        !t.is_empty() && t != "change-me" && t != "change-me-to-a-secure-token"
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Action {
     RestartDockerService(String),

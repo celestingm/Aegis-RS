@@ -95,15 +95,51 @@ async fn get_metrics(State(state): State<AppState>) -> String {
     output
 }
 
+/// Compares two byte slices without short-circuiting on the first difference.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// Docker container names: alphanumerics plus `_ . -`, never starting with `-` (option injection).
+fn is_valid_service_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 255
+        && !name.starts_with('-')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+}
+
+async fn run_remediation(remediator: SystemRemediator, action: Action) {
+    if let Err(e) = remediator.heal(action).await {
+        warn!("Remediation failed: {}", e);
+    }
+}
+
 async fn handle_webhook(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<Value>,
 ) -> (StatusCode, Json<Value>) {
+    if !state.config.lock().unwrap().has_secure_token() {
+        warn!("Webhook request rejected: no secure secret_token configured");
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "webhook_disabled"})),
+        );
+    }
+
     let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
 
     match auth_header {
-        Some(header_val) if header_val == format!("Bearer {}", state.secret_token) => {}
+        Some(header_val)
+            if constant_time_eq(
+                header_val.as_bytes(),
+                format!("Bearer {}", state.secret_token).as_bytes(),
+            ) => {}
         _ => {
             warn!("Unauthorized webhook attempt");
             return (
@@ -122,18 +158,20 @@ async fn handle_webhook(
         match action_str {
             "restart" => {
                 if let Some(target) = payload.get("target").and_then(|v| v.as_str()) {
+                    if !is_valid_service_name(target) {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(json!({"error": "invalid_target"})),
+                        );
+                    }
                     let action = Action::RestartDockerService(target.to_string());
-                    tokio::spawn(async move {
-                        remediator.heal(action).await.unwrap();
-                    });
+                    tokio::spawn(run_remediation(remediator, action));
                     return (StatusCode::OK, Json(json!({"status": "action_triggered"})));
                 }
             }
             "clean_logs" => {
                 let action = Action::CleanLogs;
-                tokio::spawn(async move {
-                    remediator.heal(action).await.unwrap();
-                });
+                tokio::spawn(run_remediation(remediator, action));
                 return (StatusCode::OK, Json(json!({"status": "action_triggered"})));
             }
             _ => {
@@ -149,4 +187,38 @@ async fn handle_webhook(
         StatusCode::BAD_REQUEST,
         Json(json!({"error": "invalid_payload"})),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_time_eq_matches_equality() {
+        assert!(constant_time_eq(b"Bearer abc", b"Bearer abc"));
+        assert!(!constant_time_eq(b"Bearer abc", b"Bearer abd"));
+        assert!(!constant_time_eq(b"Bearer abc", b"Bearer ab"));
+    }
+
+    #[test]
+    fn service_name_validation() {
+        assert!(is_valid_service_name("grafana"));
+        assert!(is_valid_service_name("my_app-1.web"));
+        assert!(!is_valid_service_name(""));
+        assert!(!is_valid_service_name("--all"));
+        assert!(!is_valid_service_name("a b"));
+        assert!(!is_valid_service_name("a;rm"));
+    }
+
+    #[test]
+    fn placeholder_tokens_are_rejected() {
+        let mut c = Config::default();
+        assert!(!c.has_secure_token());
+        c.secret_token = "change-me".into();
+        assert!(!c.has_secure_token());
+        c.secret_token = "change-me-to-a-secure-token".into();
+        assert!(!c.has_secure_token());
+        c.secret_token = "a-real-long-random-token".into();
+        assert!(c.has_secure_token());
+    }
 }
